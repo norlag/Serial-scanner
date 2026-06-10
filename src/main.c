@@ -350,7 +350,9 @@ static void build_ui(void) {
 }
 
 int main(int argc, char *argv[]) {
+#ifdef SIGPIPE
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     gtk_init(&argc, &argv);
 
