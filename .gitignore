@@ -1,18 +1,19 @@
-# Build directory
+# Build artifacts
 build/
+*.o
+*.so
+*.a
+*.exe
+*.dll
+*.lib
+*.obj
 
-# Local environment (not part of source)
-liblinks/
-pkgconfig/
-
-# IDE/editor
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# Compiled artifacts
-*.o
-*.obj
-*.exe
+# OS
+.DS_Store
+Thumbs.db
