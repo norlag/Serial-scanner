@@ -58,3 +58,9 @@ jobs:
           cd build
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
           cmake --build .
+
+      - name: Upload Windows Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: serial-scanner-windows
+          path: build/serial-scanner.exe
