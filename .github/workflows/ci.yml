@@ -55,5 +55,5 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release ..
-          make -j$(nproc)
+          cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="$MSYS2_MINGW64_PREFIX/bin/make.exe" ..
+          "$MSYS2_MINGW64_PREFIX/bin/make.exe" -j$(nproc)
