@@ -54,6 +54,40 @@ cmake ..
 make
 ```
 
+### Windows Distribution (DLL Bundling)
+
+On Windows, the executable depends on ~30 GTK3 DLLs. The CMake build
+automatically bundles these into a `dist/` subdirectory next to the
+executable.
+
+**With CMake (recommended):**
+```bash
+mkdir build && cd build
+cmake -G "MinGW Makefiles" ..
+cmake --build .
+```
+The bundled files are in `build/dist/`. Launch via:
+```
+build\dist\serial-scanner.bat
+```
+
+**Manual bundling:**
+```bash
+dist\setup_dlls.bat
+```
+This copies all required DLLs next to the executable.
+
+**Run from MSYS2 terminal:**
+```bash
+./build/serial-scanner.exe
+```
+The MSYS2 MinGW64 terminal has the correct PATH set automatically.
+
+> **Note:** The `WINDOWS_BUNDLE_DLLS` option (ON by default on Windows) can
+> be disabled with `cmake -DWINDOWS_BUNDLE_DLLS=OFF ..`.
+>
+> For full details, see [FIX.md](FIX.md).
+
 ## Running
 
 ```bash
@@ -89,6 +123,13 @@ The application follows a modular architecture:
 ├── .github/workflows/ci.yml    # GitHub Actions CI for Linux and Windows
 ├── CMakeLists.txt              # Cross-platform build configuration
 ├── README.md                   # This file
+├── FIX.md                      # Windows DLL fix documentation
+├── DIAGNOSIS.md                # Technical analysis of GTK3 DLL issue
+├── cmake/
+│   └── copy_dlls.cmake         # Post-build DLL bundling script
+├── dist/
+│   ├── setup_dlls.bat          # Standalone DLL bundling script
+│   └── serial-scanner.bat      # Launcher with PATH fallback
 ├── include/
 │   ├── device.h                # Device enumeration API
 │   ├── scanner.h               # Scanner lifecycle API

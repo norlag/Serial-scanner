@@ -1,230 +1,147 @@
-# Fix: "libgtk-3-0.dll introuvable" Error on Windows
+# Fix for GTK3 DLL Missing Error on Windows
 
-## Symptom
+## Problem
 
-When launching `serial-scanner.exe` on Windows (double-clicking from File Explorer, running from CMD or PowerShell), the application fails with:
+When running `serial-scanner.exe` on Windows (built with MinGW/MSYS2), the
+executable fails with the error:
 
 ```
-Impossible d'executer le code, car libgtk-3-0.dll est introuvable
-(The code cannot be executed because libgtk-3-0.dll was not found)
+Impossible d'executer le code, car libgtk-3-0.dll est introuvable dans votre ordinateur.
+Essayer de reinstaller l'application pour regler le probleme.
 ```
+
+Translation: "Cannot run the code because libgtk-3-0.dll was not found on your computer. Try reinstalling the application to fix the problem."
 
 ## Root Cause
 
-MSYS2/MinGW-w64 packages install GTK3 and all ~30+ transitive dependency DLLs into:
+MSYS2/MinGW-w64 installs GTK3 and its ~30 transitive dependency DLLs into
+`C:\msys64\mingw64\bin\`, which is NOT in the standard Windows PATH. When
+the `.exe` is launched from File Explorer, CMD, or PowerShell, the Windows PE
+loader cannot find `libgtk-3-0.dll` or any of its dependencies.
 
-```
-C:\msys64\mingw64\bin\
-```
+The CMake build correctly links against the GTK3 libraries, but the resulting
+`.exe` expects its DLL dependencies to be in the same directory as the
+executable, in the Windows system directories, or in the PATH. None of these
+conditions are met by default on a MinGW/MSYS2 installation.
 
-This directory is **NOT** in the standard Windows PATH. The MSYS2 shell (`/usr/bin/msys-2.0.dll`) adds it to PATH automatically, but only when you launch a terminal from the MSYS2 environment.
+## Solutions
 
-When you run the `.exe` from File Explorer, CMD, or PowerShell, the Windows PE loader searches:
-1. The directory containing the `.exe` -- **DLLs are not there**
-2. `C:\Windows\System32\`, `C:\Windows\SysWOW64\`, etc. -- **DLLs are not there**
-3. The directories listed in the system `PATH` -- **`C:\msys64\mingw64\bin\` is not there**
+### Option A: CMake Post-Build DLL Bundling (Recommended for Distribution)
 
-Result: **the loader fails immediately.**
+The project now includes `cmake/copy_dlls.cmake` which is automatically
+included from `CMakeLists.txt`. When building on Windows, it:
 
-## Solution Overview
+1. Discovers the MinGW64 DLL directory using three fallback strategies
+2. Copies all `.dll` files from that directory next to the executable
+3. Creates a `dist/` subdirectory containing everything needed to run
 
-Three solutions are provided, from simplest to most robust:
-
-| Solution | Use Case | Effort |
-|----------|----------|--------|
-| A. Run from MSYS2 shell | Development only | Zero |
-| B. CMake post-build DLL copy | Distribution (recommended) | Zero (auto) |
-| C. Batch launcher script | Distribution (manual) | One-time setup |
-
----
-
-## Solution A: Run from MSYS2 MinGW64 Shell (Development Only)
-
-If you are developing and testing, simply launch the application from the MSYS2 MinGW64 terminal:
+To build with DLL bundling:
 
 ```bash
-# Open "MSYS2 MinGW64" from the Start Menu
-cd /path/to/Serial-scanner/build
-./serial-scanner
-```
-
-The MSYS2 shell automatically sets `PATH` to include `/mingw64/bin`, so all DLLs are found.
-
-**Do NOT use this for end-user distribution.**
-
----
-
-## Solution B: CMake Post-Build DLL Copy (Recommended for Distribution)
-
-The CMakeLists.txt has been updated with an automatic post-build step that copies all required DLLs next to the `.exe` after every build. This is the **recommended approach** for distribution.
-
-### How It Works
-
-1. At CMake configure time, the script searches for the MinGW64 DLL directory using three strategies:
-   - Query `pkg-config` for GTK3 library paths and resolve the DLL directory
-   - Fall back to `GTK3_LIBRARY_DIRS` from `pkg_check_modules`
-   - Last resort: check standard paths (`C:\msys64\mingw64\bin\`, `D:\msys64\mingw64\bin\`)
-
-2. At build time (POST_BUILD), a generated batch script copies every required DLL into the same directory as the `.exe`.
-
-3. The resulting build directory contains a fully self-contained application.
-
-### Usage
-
-```bash
-# Standard build (DLLs are auto-copied on Windows)
-cd Serial-scanner
 mkdir build && cd build
-cmake .. -G "MinGW Makefiles"
-mingw32-make
-
-# The .exe and all DLLs are now in the build/ directory
-# You can copy the entire build/ directory to distribute
+cmake -G "MinGW Makefiles" ..
+cmake --build .
 ```
 
-To **disable** automatic DLL bundling (e.g., for Linux builds on a cross-compiler):
+The bundled files will be in `build/dist/`. Launch via:
+```
+build\dist\serial-scanner.bat
+```
+
+To disable: `cmake -DWINDOWS_BUNDLE_DLLS=OFF ..`
+
+### Option B: Standalone Batch Script (Manual Distribution)
+
+If you built without DLL bundling (or want to bundle manually):
+
+1. Copy `serial-scanner.exe` to a working directory
+2. Run `dist\setup_dlls.bat` to bundle all required DLLs:
 
 ```bash
-cmake .. -DWINDOWS_BUNDLE_DLLS=OFF
+dist\setup_dlls.bat
 ```
 
-### What Gets Copied
-
-The script discovers DLLs from the linker flags and also bundles these always-required system DLLs:
-- `libwinpthread-1.dll` (threading)
-- `libstdc++-6.dll` (C++ runtime)
-- `libgcc_s_seh-1.dll` (GCC runtime)
-- `libserialport-0.dll` (serial port library)
-- Plus all GTK3 transitive dependencies (~30 DLLs)
-
----
-
-## Solution C: Batch Launcher Script (Manual Distribution)
-
-If you prefer not to modify the build process, use the provided batch scripts in the `dist/` directory.
-
-### Option 1: One-Time DLL Setup
-
-1. Build the project as usual (from MSYS2 shell or CI)
-2. Copy `serial-scanner.exe` and `dist/setup_dlls.bat` to a distribution folder
-3. Run `setup_dlls.bat` -- it copies all DLLs automatically
-4. Distribute the folder
-
-```batch
-REM In the distribution folder:
-setup_dlls.bat
-serial-scanner.exe   <-- now works without MSYS2 shell
+This creates a `dist/` subdirectory with all needed DLLs. Launch via:
+```
+dist\serial-scanner.bat
 ```
 
-### Option 2: Batch Launcher with PATH Setup
+### Option C: Run from MSYS2 MinGW64 Terminal
 
-1. Build the project
-2. Copy `serial-scanner.exe`, `dist/serial-scanner.bat`, and `dist/setup_dlls.bat` to the distribution folder
-3. Run `serial-scanner.bat` instead of the `.exe` directly
-
-The launcher checks if DLLs are bundled. If not, it finds the MSYS2 installation and adds it to PATH before launching.
-
----
-
-## Complete Distribution Checklist
-
-When preparing a Windows release, verify:
-
-- [ ] `serial-scanner.exe` is present
-- [ ] All DLLs are present in the same directory (run `setup_dlls.bat` to copy them)
-- [ ] `README.md` is present (for user documentation)
-- [ ] Test on a **clean Windows machine** (or VM) with no MSYS2 installed
-- [ ] The application launches without any PATH configuration
-
-### Files in a Distribution Package
-
-```
-serial-scanner/
-  serial-scanner.exe        <-- the application
-  libgtk-3-0.dll            <-- GTK3 core (auto-copied)
-  libgdk-3-0.dll            <-- GDK core (auto-copied)
-  libgdk_pixbuf-2.0-0.dll   <-- GDK Pixbuf (auto-copied)
-  libglib-2.0-0.dll         <-- GLib (auto-copied)
-  ... (30+ more DLLs) ...
-  README.md                 <-- user documentation
-```
-
----
-
-## Troubleshooting
-
-### "Some DLLs not found" after running setup_dlls.bat
-
-Install the full set of MSYS2 MinGW-w64 packages:
+If you have MSYS2 installed, simply launch the executable from the MinGW64
+terminal, where the PATH is automatically configured:
 
 ```bash
-# In MSYS2 MinGW64 terminal:
-pacman -S mingw-w64-x86_64-gtk3 mingw-w64-x86_64-libserialport
+# In MSYS2 MinGW64 terminal
+./build/serial-scanner.exe
 ```
 
-### Still getting DLL errors after copying?
+### Option D: Add MSYS2 to Windows PATH
 
-Use `ldd` (from MSYS2) to check dependencies:
+Add `C:\msys64\mingw64\bin` to the Windows system PATH (System Properties ->
+Environment Variables -> Path). After restarting any open terminals, the
+executable will work from anywhere.
 
-```bash
-ldd serial-scanner.exe
-```
+## Required DLLs
 
-Any DLLs showing "not found" are missing from your distribution folder.
+The complete list of DLLs required at runtime includes:
 
-### Building on CI (GitHub Actions)
+**GTK3 Core:**
+- libgtk-3-0.dll, libgdk-3-0.dll, libgdk_pixbuf-2.0-0.dll
 
-The CI workflow already builds in the MSYS2 environment. To package DLLs in CI, add the DLL copy step:
+**GLib/GIO:**
+- libglib-2.0-0.dll, libgio-2.0-0.dll, libgmodule-2.0-0.dll,
+  libgobject-2.0-0.dll, libgthread-2.0-0.dll, libglib-2.0.dll,
+  libffi-8.dll, libpcre2-8-0.dll
 
-```yaml
-- name: Bundle Windows DLLs
-  if: runner.os == 'Windows'
-  shell: msys2 {0}
-  run: |
-    cd build
-    cmake --build . --config Release
-    # DLLs are auto-copied by the post-build step
-    ls *.dll  # verify they were copied
-```
+**Pango/Cairo:**
+- libpango-1.0-0.dll, libpangocairo-1.0-0.dll, libpangoft2-1.0-0.dll,
+  libpangowin32-1.0-0.dll, libcairo-2.dll, libcairo-gobject-2.dll,
+  libfreetype-6.dll, libfontconfig-1.dll, libbz2-1.dll,
+  libpng16-16.dll, libtiff-6.dll, libwebp-7.dll, libzstd-1.dll,
+  liblzma-5.dll, libjpeg-8.dll, liblz4-1.dll
 
----
+**Text/Internationalization:**
+- libintl-8.dll, libiconv-2.dll, libgraphite2.dll, libharfbuzz-0.dll
 
-## Files Modified/Created
+**System/Threading:**
+- libwinpthread-1.dll, libgcc_s_seh-1.dll, libstdc++-6.dll
 
-|| File | Purpose |
-||------|---------||
-|| `CMakeLists.txt` | Updated with `WINDOWS_BUNDLE_DLLS` option and `copy_dlls.cmake` include ||
-|| `cmake/copy_dlls.cmake` | New: CMake script for auto-discovering and copying DLLs ||
-|| `dist/setup_dlls.bat` | New: Batch script for one-time DLL copying ||
-|| `dist/serial-scanner.bat` | New: Batch launcher with automatic PATH fallback ||
-|| `FIX.md` | This file ||
+**Serial Port:**
+- libserialport-0.dll
 
----
+**Compiler Runtime:**
+- Microsoft Visual C++ Redistributable (vcredist) may be needed for
+  certain MSYS2 packages. Download from:
+  https://aka.ms/vs/17/release/vc_redist.x64.exe
 
 ## Design Notes & Caveats
 
-### DLL Discovery Strategy
-The `copy_dlls.cmake` script uses a three-tier discovery strategy to find the
-MinGW64 `/bin` directory:
-1. **pkg-config**: Query `--libs-only-L` for GTK3 and resolve the parent `/bin`
-2. **GTK3_LIBRARY_DIRS**: Fallback to CMake's pkg-config module variables
-3. **Hard-coded paths**: Last resort checks `C:/msys64/` and `D:/msys64/`
+### Three-Tier DLL Discovery
 
-If none succeed, the build continues without DLL bundling and a warning is
-printed. Users can override by setting `MINGW64_BIN_DIR` in the CMake cache.
+`cmake/copy_dlls.cmake` uses a cascading fallback strategy:
 
-### DLL Enumeration
-DLLs are discovered by:
-- Converting pkg-config linker flags (`-lgtk-3`, etc.) to expected DLL names
-- Always including core system DLLs (libstdc++, libgcc, libwinpthread)
-- Including libserialport if present
-- Deduplicating the final list
+1. **pkg-config** - Queries `pkg-config --variable=prefix gtk+-3.0` for the
+   canonical install prefix, then appends `/bin` on Windows.
+2. **CMake find-pkg cache** - Falls back to `GTK3_PREFIX` set by
+   `pkg_check_modules(GTK3 REQUIRED gtk+-3.0)`.
+3. **Hardcoded MSYS2 paths** - Last resort checks for
+   `C:\msys64\mingw64\bin` and `C:\msys64\usr\bin`.
 
-### Cache Variable Safety
-The `MINGW64_BIN_DIR` cache variable is only created if it does not already
-exist, preventing accidental cache pollution on reconfigure.
+### Cache Safety
 
-### MSYS2 Shell Requirement
-The CMake configure step itself must run inside the MSYS2 MinGW64 shell
-(because `pkg-config` is not available outside that environment). The
-resulting build and DLL copy work on any Windows system regardless.
+The `MINGW64_BIN_DIR` variable is NOT stored in the CMake cache to prevent
+cache pollution across builds. It is a local variable only.
+
+### MSYS2 Shell Requirements
+
+Some MSYS2 DLLs (particularly those in `/usr/bin`) have their own DLL
+dependencies. When running from the MSYS2 shell, the MSYS2 runtime handles
+this transparently. When running from CMD/PowerShell, the bundled `dist/`
+directory approach (Option A/B) is the most reliable.
+
+### CI Integration
+
+The CI workflow (`build-windows` job) currently builds the project but does
+not bundle DLLs or verify runtime. Consider adding a post-build step that
+runs `setup_dlls.bat` and verifies the executable launches.

@@ -68,3 +68,10 @@ endif()
 # --- Install ---
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 install(FILES README.md DESTINATION share/doc/${PROJECT_NAME})
+
+# --- Windows DLL Bundling ---
+# Include the post-build DLL bundling script on Windows/MinGW builds.
+# This copies all required GTK3 and transitive dependency DLLs next to the
+# executable so it can be launched from File Explorer or a regular CMD window.
+# Set WINDOWS_BUNDLE_DLLS=OFF to disable.
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/copy_dlls.cmake")
