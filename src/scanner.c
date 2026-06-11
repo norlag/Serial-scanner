@@ -31,7 +31,7 @@ static gboolean success_idle_cb(gpointer user_data) {
 /* ------------------------------------------------------------------ */
 /*  Constructor / Destructor                                           */
 /* ------------------------------------------------------------------ */
-struct Scanner *scanner_create(const char *port_name, ScanMode_t mode) {
+Scanner_t *scanner_create(const char *port_name, ScanMode_t mode) {
     if (!port_name) return NULL;
 
     struct Scanner *s = calloc(1, sizeof(struct Scanner));
@@ -45,7 +45,7 @@ struct Scanner *scanner_create(const char *port_name, ScanMode_t mode) {
     return s;
 }
 
-void scanner_destroy(struct Scanner **scanner) {
+void scanner_destroy(Scanner_t **scanner) {
     if (!scanner || !*scanner) return;
     struct Scanner *s = *scanner;
     if (s->running) scanner_stop(s);
@@ -57,7 +57,7 @@ void scanner_destroy(struct Scanner **scanner) {
 /* ------------------------------------------------------------------ */
 /*  Public API                                                         */
 /* ------------------------------------------------------------------ */
-int scanner_start(struct Scanner *scanner) {
+int scanner_start(Scanner_t *scanner) {
     if (!scanner || scanner->running) return -1;
     scanner->running = 1;
     scanner->state = SCANNER_STATE_SCANNING;
@@ -70,18 +70,18 @@ int scanner_start(struct Scanner *scanner) {
     return 0;
 }
 
-int scanner_stop(struct Scanner *scanner) {
+int scanner_stop(Scanner_t *scanner) {
     if (!scanner || !scanner->running) return -1;
     scanner->running = 0;
     return pthread_cancel(scanner->thread);
 }
 
-void scanner_set_mode(struct Scanner *scanner, ScanMode_t mode) {
+void scanner_set_mode(Scanner_t *scanner, ScanMode_t mode) {
     if (!scanner) return;
     scanner->mode = mode;
 }
 
-void scanner_set_ui_callbacks(struct Scanner *scanner, scan_callback_t log_line,
+void scanner_set_ui_callbacks(Scanner_t *scanner, scan_callback_t log_line,
                               void (*on_success)(const char *port, int baud)) {
     if (!scanner) return;
     scanner->log_line = log_line;
