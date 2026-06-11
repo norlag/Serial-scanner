@@ -191,10 +191,40 @@ The CI workflow already builds in the MSYS2 environment. To package DLLs in CI, 
 
 ## Files Modified/Created
 
-| File | Purpose |
-|------|---------|
-| `CMakeLists.txt` | Updated with `WINDOWS_BUNDLE_DLLS` option and `copy_dlls.cmake` include |
-| `cmake/copy_dlls.cmake` | New: CMake script for auto-discovering and copying DLLs |
-| `dist/setup_dlls.bat` | New: Batch script for one-time DLL copying |
-| `dist/serial-scanner.bat` | New: Batch launcher with automatic PATH fallback |
-| `FIX.md` | This file |
+|| File | Purpose |
+||------|---------||
+|| `CMakeLists.txt` | Updated with `WINDOWS_BUNDLE_DLLS` option and `copy_dlls.cmake` include ||
+|| `cmake/copy_dlls.cmake` | New: CMake script for auto-discovering and copying DLLs ||
+|| `dist/setup_dlls.bat` | New: Batch script for one-time DLL copying ||
+|| `dist/serial-scanner.bat` | New: Batch launcher with automatic PATH fallback ||
+|| `FIX.md` | This file ||
+
+---
+
+## Design Notes & Caveats
+
+### DLL Discovery Strategy
+The `copy_dlls.cmake` script uses a three-tier discovery strategy to find the
+MinGW64 `/bin` directory:
+1. **pkg-config**: Query `--libs-only-L` for GTK3 and resolve the parent `/bin`
+2. **GTK3_LIBRARY_DIRS**: Fallback to CMake's pkg-config module variables
+3. **Hard-coded paths**: Last resort checks `C:/msys64/` and `D:/msys64/`
+
+If none succeed, the build continues without DLL bundling and a warning is
+printed. Users can override by setting `MINGW64_BIN_DIR` in the CMake cache.
+
+### DLL Enumeration
+DLLs are discovered by:
+- Converting pkg-config linker flags (`-lgtk-3`, etc.) to expected DLL names
+- Always including core system DLLs (libstdc++, libgcc, libwinpthread)
+- Including libserialport if present
+- Deduplicating the final list
+
+### Cache Variable Safety
+The `MINGW64_BIN_DIR` cache variable is only created if it does not already
+exist, preventing accidental cache pollution on reconfigure.
+
+### MSYS2 Shell Requirement
+The CMake configure step itself must run inside the MSYS2 MinGW64 shell
+(because `pkg-config` is not available outside that environment). The
+resulting build and DLL copy work on any Windows system regardless.
