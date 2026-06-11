@@ -64,9 +64,12 @@ jobs:
           mkdir -p dist
           cp build/serial-scanner.exe dist/
           # Run the CMake-generated batch script to copy DLLs into build/
-          # Use cmd.exe /C so %VAR% expansion works correctly
+          # The batch file is generated at configure time by copy_dlls.cmake
           if [ -f build/copy_dlls.bat ]; then
-            cmd.exe /C build/copy_dlls.bat
+            # cd into build/ and run the batch file
+            # Use cmd.exe /C with cd /d for cross-drive support
+            # Run in a subshell so cd doesn't affect the parent bash
+            (cd build && cmd.exe /C copy_dlls.bat)
           fi
           # Copy DLLs from build/ to dist/ for packaging
           if ls build/*.dll 1>/dev/null 2>&1; then
