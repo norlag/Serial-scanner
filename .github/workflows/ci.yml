@@ -55,7 +55,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -G "MinGW Ninja" -DCMAKE_BUILD_TYPE=Release ..
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
           cmake --build .
 
       - name: Bundle DLLs into distribution folder
