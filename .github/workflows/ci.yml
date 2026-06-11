@@ -63,13 +63,17 @@ jobs:
         run: |
           mkdir -p dist
           cp build/serial-scanner.exe dist/
-          # The CMake post-build step should have already copied DLLs into build/
-          # Copy them to the dist folder for packaging
+          # Run the CMake-generated batch script to copy DLLs into build/
+          # Use cmd.exe /C so %VAR% expansion works correctly
+          if [ -f build/copy_dlls.bat ]; then
+            cmd.exe /C build/copy_dlls.bat
+          fi
+          # Copy DLLs from build/ to dist/ for packaging
           if ls build/*.dll 1>/dev/null 2>&1; then
             cp build/*.dll dist/
             echo "Copied $(ls dist/*.dll 2>/dev/null | wc -l) DLL(s) to dist/"
           else
-            echo "No DLLs found in build/ -- post-build step may not have run"
+            echo "No DLLs found in build/"
           fi
           # Copy dist scripts for end-user distribution
           cp dist/*.bat dist/ 2>/dev/null || true

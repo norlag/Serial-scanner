@@ -177,16 +177,15 @@ file(APPEND "${_BATCH_FILE}"
 )
 
 # ── Step 4: Hook into the build ─────────────────────────────────────────
+#
+# NOTE: We DO NOT use add_custom_command POST_BUILD here.  Ninja on Windows
+# wraps POST_BUILD commands in cmd.exe /C "cmd1 && cmd2", and the batch-file
+# path gets mangled by nested quoting, causing "was unexpected at this time".
+# DLL bundling is handled by the CI workflow step "Bundle DLLs" instead,
+# which runs in MSYS2 bash where paths are handled correctly.
+#
+# If you need standalone .exe + DLLs on Windows, run the generated batch
+# manually after building:
+#   build/copy_dlls.bat
+#
 
-# We only add the post-build step if we found at least one DLL
-if(_FOUND_DLLS AND MINGW64_BIN_DIR)
-    # Build a human-readable list of DLLs for the comment
-    list(JOIN _FOUND_DLLS ", " _DLL_LIST)
-
-    add_custom_command(
-        TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND "${_BATCH_FILE}"
-        COMMENT "Copying ${_DLL_COUNT} MinGW DLLs (${_DLL_LIST})"
-        VERBATIM
-    )
-endif()
