@@ -59,8 +59,34 @@ jobs:
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
           cmake --build .
 
-      - name: Upload Windows Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: serial-scanner-windows
-          path: build/serial-scanner.exe
+      - name: Bundle DLLs into distribution folder
+          shell: msys2 {0}
+          run: |
+            mkdir -p dist
+            cp build/serial-scanner.exe dist/
+            # The CMake post-build step should have already copied DLLs into build/
+            # Copy them to the dist folder for packaging
+            if ls build/*.dll 1>/dev/null 2>&1; then
+              cp build/*.dll dist/
+              echo "Copied $(ls dist/*.dll 2>/dev/null | wc -l) DLL(s) to dist/"
+            else
+              echo "No DLLs found in build/ -- post-build step may not have run"
+            fi
+            # Copy dist scripts for end-user distribution
+            cp dist/*.bat dist/ 2>/dev/null || true
+
+        - name: List bundled files
+          shell: msys2 {0}
+          run: |
+            echo "=== Distribution contents ==="
+            ls -la dist/
+            echo "=== DLL count ==="
+            ls dist/*.dll 2>/dev/null | wc -l || echo "0 DLLs"
+            echo "=== Binary ==="
+            ls -la dist/serial-scanner.exe
+
+        - name: Upload Windows Binary with DLLs
+          uses: actions/upload-artifact@v4
+          with:
+            name: serial-scanner-windows
+            path: dist/
