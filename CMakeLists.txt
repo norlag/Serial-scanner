@@ -48,6 +48,23 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     -Wall -Wextra -Wpedantic
 )
 
+# --- Windows DLL bundling (post-build step) ─────────────────────────────
+# On MSYS2/MinGW-w64, GTK3 and its ~30 transitive dependencies are installed
+# into C:\msys64\mingw64\bin\.  When the .exe is launched from File Explorer,
+# CMD, or PowerShell, the Windows PE loader cannot find these DLLs because
+# that directory is not in the standard Windows PATH.
+#
+# This post-build step copies every required DLL next to the .exe so that
+# the application runs standalone without manual PATH configuration.
+#
+# For development: you can skip this by passing -DWINDOWS_BUNDLE_DLLS=OFF.
+# For distribution: this step is enabled by default on Windows.
+option(WINDOWS_BUNDLE_DLLS "Copy MinGW runtime DLLs next to the executable on Windows" ON)
+
+if(WINDOWS_BUNDLE_DLLS AND WIN32)
+    include(cmake/copy_dlls.cmake)
+endif()
+
 # --- Install ---
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 install(FILES README.md DESTINATION share/doc/${PROJECT_NAME})
