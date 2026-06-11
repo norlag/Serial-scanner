@@ -22,7 +22,9 @@
 # Strategy A: try to find pkg-config and query it
 find_program(MINGW_PKGCONFIG NAMES mingw32-pkg-config pkg-config)
 
-set(MINGW64_BIN_DIR "" CACHE PATH "Manual override: path to mingw64/bin (optional)")
+if(NOT DEFINED MINGW64_BIN_DIR OR MINGW64_BIN_DIR STREQUAL "")
+    set(MINGW64_BIN_DIR "" CACHE PATH "Path to mingw64/bin (optional -- auto-detected by default)")
+endif()
 
 if(NOT MINGW64_BIN_DIR)
     if(MINGW_PKGCONFIG)
@@ -137,7 +139,8 @@ endif()
 # Remove duplicates
 list(REMOVE_DUPLICATES _FOUND_DLLS)
 
-message(STATUS "copy_dlls.cmake: Found ${LENGTH(_FOUND_DLLS)} DLLs to bundle")
+list(LENGTH _FOUND_DLLS _DLL_COUNT)
+message(STATUS "copy_dlls.cmake: Found ${_DLL_COUNT} DLLs to bundle")
 
 # ── Step 3: Generate the batch copy script ──────────────────────────────
 
@@ -177,17 +180,14 @@ file(APPEND "${_BATCH_FILE}"
 
 # We only add the post-build step if we found at least one DLL
 if(_FOUND_DLLS AND MINGW64_BIN_DIR)
-    # Get the target name
-    get_target_property(_TARGET_OUTPUT ${PROJECT_NAME} LOCATION)
-    if(_TARGET_OUTPUT)
-        get_filename_component(_TARGET_DIR "${_TARGET_OUTPUT}" DIRECTORY)
+    # Build a human-readable list of DLLs for the comment
+    list(JOIN _FOUND_DLLS ", " _DLL_LIST)
 
-        add_custom_command(
-            TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E echo ">>> Copying MinGW runtime DLLs..."
-            COMMAND "${_BATCH_FILE}"
-            COMMENT "Copying ${_FOUND_DLLS} MinGW DLLs to ${_TARGET_DIR}"
-            VERBATIM
-        )
-    endif()
+    add_custom_command(
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo ">>> Copying MinGW runtime DLLs..."
+        COMMAND "${_BATCH_FILE}"
+        COMMENT "Copying ${_DLL_COUNT} MinGW DLLs (${_DLL_LIST})"
+        VERBATIM
+    )
 endif()
